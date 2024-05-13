@@ -1,11 +1,8 @@
 package chat.server;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.Socket;
-import java.util.Objects;
+import java.net.SocketException;
 
 public class ClientHandler implements Runnable {
     private Socket clientSocket;
@@ -33,37 +30,40 @@ public class ClientHandler implements Runnable {
             nickName = in.readLine();
             System.out.println("Клиент с никнеймом " + nickName + " подключился к серверу.");
 
-            Thread readThread = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        while (isRunning) {
-                            String message = in.readLine();
-
-                            if (Objects.isNull(message)) {
-                                break;
-                            }
-
-                            if (message.equalsIgnoreCase("exit")) {
-                                isRunning = false;
-                                System.out.println("Клиент с никнеймом " + nickName + " отключился от сервера.");
-                                serverListener.removeClient(ClientHandler.this);
-                                serverListener.waitForNewClient();
-                                break;
-                            }
-
-                            System.out.println(nickName + ": " + message);
-                            serverListener.sendMessageToAllClients(nickName + ": " + message);
-                        }
-                    } catch (IOException e) {
+            String message;
+            while (isRunning) {
+                try {
+                    message = in.readLine();
+                } catch (IOException e) {
+                    if (e instanceof SocketException) {
+                        System.out.println("Клиент с никнеймом " + nickName + " отключился от сервера.");
+                        serverListener.removeClient(this);
+                        isRunning = false;
+                        break;
+                    } else {
                         e.printStackTrace();
+                        break;
                     }
                 }
-            });
 
-            readThread.start();
-            readThread.join();
-        } catch (IOException | InterruptedException e) {
+                if (message == null) {
+                    System.out.println("Клиент с никнеймом " + nickName + " отключился от сервера.");
+                    serverListener.removeClient(this);
+                    isRunning = false;
+                    break;
+                }
+
+                if (message.equalsIgnoreCase("exit")) {
+                    System.out.println("Клиент с никнеймом " + nickName + " отключился от сервера.");
+                    serverListener.removeClient(this);
+                    isRunning = false;
+                    break;
+                }
+
+                System.out.println(nickName + ": " + message);
+                serverListener.sendMessageToAllClients(nickName + ": " + message);
+            }
+        } catch (IOException e) {
             e.printStackTrace();
         } finally {
             try {
